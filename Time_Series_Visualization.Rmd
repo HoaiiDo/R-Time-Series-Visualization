@@ -1,0 +1,298 @@
+---
+title: "Time Series Visualization"
+author: "Hoai Do"
+date: "12/01/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Time Series Visualization with R
+### I. Time Series Visualization
+Time series data is measurement taken over time, such as temperature, stock price and so on. It aim to study the evolution of one or several variables through time. Therefore, how to design the time axis is the central question in visualizing time series.
+
+```{r}
+library(forecast)
+library(fpp2)
+library(tidyverse)
+library(readr)
+library(ggrepel)
+library(babynames)
+library(gridExtra)
+```
+
+### II. Line Plot
+A line plot is a graph that connects a series of points by drawing line segments between them. These points are ordered in one of their coordinate (usually the x-coordinate) value. Line plots are usually used in identifying the trends in data, chronologically. It is similar to a scatter plot except that the measurement points are ordered (typically by their x-axis value) and joined with straight line segments. 
+
+Analyze the dataset `babynames` from the R package `babynames`. This dataset comes with five variable: year, sex, name,n, and prop(proportions of the people of each sex with particular name born in a specific year).
+```{r}
+library(babynames)
+data(babynames)
+head(babynames)
+```
+Let's take a focus on the name of character from Friends TV show.
+```{r}
+friends_names = babynames %>% 
+  filter(name %in% c("Monica", "Phoebe", "Rachel", "Joey", "Ross", "Chandler")) %>%
+  select(year,  name, n)
+friends_names
+```
+```{r}
+friends_w = pivot_wider(friends_names, id_cols = year, 
+                           names_from = name, values_from = n, 
+                           values_fill = NA, values_fn = sum) # wide format
+friends_w
+```
+```{r}
+friends_l = pivot_longer(friends_w, cols=!year, 
+                            names_to = "character_name", values_to = "n") # long format
+friends_l
+```
+Save the dataset for later use
+```{r}
+write.csv(friends_w, file="~/Desktop/Rworkingdir/dataviz-main/data/friends_w.csv", row.names = FALSE)
+write.csv(friends_l, file="~/Desktop/Rworkingdir/dataviz-main/data/friends_l.csv", row.names = FALSE)
+```
+
+Now we use the Friends air time from 1994 to 2004 to visualize some insights which a focus on names of Rachel and Monica.
+```{r}
+friends_w = read.csv(file="~/Desktop/Rworkingdir/dataviz-main/data/friends_w.csv")
+friends_l = read.csv(file="~/Desktop/Rworkingdir/dataviz-main/data/friends_l.csv")
+g1=ggplot(data = friends_w)+
+  #geom_rect(aes(xmin=1994,xmax=2004,ymin=-Inf,ymax=Inf),fill='lightblue',alpha=0.7)+
+  annotate("rect", xmin=1994, xmax=2004,
+                   ymin=-Inf, ymax=Inf, 
+           fill='#ff9abf',alpha=0.2) +
+  geom_vline(xintercept = 1994) + 
+  geom_vline(xintercept = 2004) +
+  geom_line(aes(year, y=Rachel,color='Rachel'), size=1.2) +
+  geom_line(aes(year, y=Monica,    color='Monica'), size=1.2) +
+  scale_color_manual(name='Name', values = c("#ff0000","#ffcb12"))+
+  scale_x_continuous(limits = c(1980, 2017)) +
+  theme(legend.position = "top")
+g2=ggplot(data = friends_l, aes(year))+
+  geom_line(aes(y=n,color=character_name),size=1)+
+  scale_color_discrete("Name")+
+  theme(legend.position = "top")
+library(gridExtra)
+grid.arrange(g1,g2,ncol=2)
+```
+### III. Area Plot
+A area plot is just the line plot but with the area below the line filled in with a certain color or texture. The area plot is drawn by first plotting data points on a Cartesian coordinate grid, joining a line between the points and finally filling in the space below the completed line.
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(reshape2)
+```
+```{r, fig.width = 4, fig.height=2}
+friends_w = read.csv(file="~/Desktop/Rworkingdir/dataviz-main/data/friends_w.csv")
+g1=ggplot(data = friends_w, aes(x=year)) +
+  geom_area(aes(y=Rachel,fill="Rachel"),alpha=0.5)+
+  geom_area(aes(y=Monica    ,fill="Monica"),alpha=0.5)+
+  scale_fill_manual(name='Name',values = c("#ff0000","#ffcb12"))+
+  scale_x_continuous(expand = c(0,0))+
+  ylab('Name Frequency') + xlab('Year') +
+  theme(legend.position = "top")
+g2=ggplot(data = friends_w, aes(x=year))+
+  geom_area(aes(y=Monica+Rachel ,fill="Rachel"))+
+  geom_area(aes(y=Monica          ,fill="Monica"))+
+  scale_fill_manual(name='Name',values = c("#ff0000","#ffcb12"))+
+  ylab('Stacked Name Frequency') +
+  theme(legend.position = "top")
+g3=ggplot(friends_w)+
+  geom_line(aes(year,y=Rachel,color='Rachel'),size=1.2)+
+  geom_line(aes(year,y=Monica,    color='Monica'),size=1.2)+
+  scale_color_manual(name='Name',values = c("#ff0000","#ffcb12"))+
+  geom_ribbon(aes(x=year,ymin=Rachel,ymax=Monica),fill='lightblue',alpha=0.5)+
+  scale_x_continuous(limits=c(1980,2017))+
+  ylab("Name Frequency") +
+  theme(legend.position = "top")
+grid.arrange(g1,g2,g3,ncol=3)
+```
+
+Now we use the long format to visualize the frequencies of all six names from Friends
+```{r, fig.width = 4.5, fig.height=2}
+friends_l = read.csv(file="~/Desktop/Rworkingdir/dataviz-main/data/friends_l.csv")
+g1=ggplot(data = friends_l, aes(x=year)) +
+  geom_area(aes(y=n, fill=character_name), 
+            position = "identity", alpha=0.5) +
+  scale_x_continuous(expand = c(0,0))+
+  scale_fill_viridis_d("Name")+
+  ylab('Name Frequency') + xlab('Year')+
+  theme(legend.position = "top")
+g2=ggplot(data = friends_l, aes(x=year)) +
+  geom_area(aes(y=n, fill=character_name),position="stack") +
+  scale_x_continuous(expand = c(0,0))+
+  scale_fill_viridis_d("Name")+
+  ylab('Stacked Name Frequency') + xlab('Year')+
+  theme(legend.position = "top")
+g3=ggplot(data = friends_l, aes(x=year)) +
+  geom_area(aes(y=n, fill=character_name),position="fill") +
+  scale_x_continuous(expand = c(0,0))+
+  scale_fill_viridis_d("Name")+
+  ylab('Proportion') + xlab('Year')+
+  theme(legend.position = "top")
+grid.arrange(g1,g2,g3,ncol=3)
+```
+
+### IV.Stream Graph
+Unlike a traditional stacked area graph in which the layers are stacked on top of an axis, in a stream graph the layers are positioned to minimize their “wiggle”. More formally, the layers are displaced to minimize the sum of the squared slopes of each layer, weighted by the area of the layer.
+
+```{r}
+devtools::install_github("hrbrmstr/streamgraph") 
+library(streamgraph)
+library(ggTimeSeries)
+friends_l =read.csv(file="~/Desktop/Rworkingdir/dataviz-main/data/friends_l.csv")
+library(ggTimeSeries)
+ggplot(friends_l) +
+  geom_rect(aes(xmin=1994,xmax=2004,ymin=-Inf,ymax=Inf),fill='snow3')+
+  stat_steamgraph(aes(x = year, y = n, group = character_name, fill = character_name),
+                  color="black",size=0.25)+
+  geom_vline(xintercept = 1994,linetype=2,size=0.5)+
+  geom_vline(xintercept = 2004,linetype=2,size=0.5)+
+  scale_x_continuous(limits = c(1900, 2017))+
+  xlab('Year') + 
+  ylab('Frequency') + 
+  theme(panel.background = element_rect(fill='transparent'),
+        axis.line.x = element_line(color = 'black'),
+        axis.line.y = element_line(color = 'black'))
+```
+
+Interactive stream graph
+```{r}
+friends_l %>%
+  group_by(year, character_name) %>%
+  tally(wt=n) %>%
+  streamgraph("character_name", "n", "year") %>%
+  sg_legend(show = T, label = "Names")
+```
+
+### V. Calendar-Based Scatter Plot
+This type of plot is able to display the frequency of events in different time periods, for example, years, months, weeks and days. Calendar-based graphics is a variant of heat map, which can expand its application through linear transformation. Compared with heat maps, it can be used with other types of geom(). 
+```{r}
+if(!require(sugrrants)) install.packages("sugrrants")
+library(sugrrants)
+```
+```{r}
+CRWD <- read_csv("CRWD.csv")
+```
+```{r}
+CRWD$date <- as.Date(CRWD$Date) ## transfer to date format
+CRWD$year <- as.integer(strftime(CRWD$Date,'%Y'))  ## extract year
+CRWD$month <- as.integer(strftime(CRWD$Date,'%m')) ## extract month
+CRWD$week <- as.integer(strftime(CRWD$Date,'%W'))  ## extract week
+month_locat <- c()
+for(i in 1:12){
+  month_locat[i] <- mean(CRWD$week[which(CRWD$month==i)])  ##find the average of every month
+}
+
+ggplot(data = CRWD, aes(date=Date,fill=Close))+
+  stat_calendar_heatmap()+
+  scale_fill_gradientn(colours= rev(brewer.pal(11,'Spectral')))+
+  facet_wrap(~year,ncol = 1,strip.position = 'top')+  ## strip.position:'right','left','top'和'bottom'
+  scale_y_continuous(breaks=seq(7,1,-1), labels=c("Mon","Tue","Wed","Thu","Fri","Sat","Sun")) +
+  scale_x_continuous(breaks=month_locat,
+                     labels=c("Jan","Feb","Mar","Apr","May","Jue",
+                              "Jul","Aug","Sep","Oct","Nov","Dec"), 
+                     expand = c(0,0))+
+  xlab("Month")+ylab("Day of the Week")+
+  theme( panel.background = element_blank(),
+         panel.border = element_rect(colour="grey60",fill=NA),  ## border for columns
+         axis.line = element_line(colour="black",size=0.25),  
+         axis.text = element_text(size = 6))
+```
+
+```{r}
+# need to round Close value to 2 decimal so it can fit the calendar plot
+CRWD$CRWD_2020_CLose_Round <- format(round(CRWD$Close), nsmall = 2)
+CRWD_2020 <- CRWD[CRWD$year==2020,]
+CRWD_2020$mon_fac <- factor(CRWD_2020$month,levels = as.character(1:12),
+                          labels=c("Jan","Feb","Mar","Apr","May","Jun",
+                                   "Jul","Aug","Sep","Oct","Nov","Dec"),ordered=TRUE)
+CRWD_2020$weekday <- as.integer(strftime(CRWD_2020$date,'%u'))  
+CRWD_2020$wd_fac <- factor(CRWD_2020$weekday,levels = (1:7),labels=(c("M","Tu","W","Th","F","Sa","S")),ordered=TRUE)
+CRWD_2020 <- CRWD_2020 %>% group_by(mon_fac) %>% mutate(monthweek= 1+week-min(week)) ## add new variable
+ggplot(CRWD_2020,aes(wd_fac,monthweek,fill=Close))+
+  geom_tile(color='white')+    ## white background
+  scale_fill_gradientn(colours=rev(brewer.pal(11,'Spectral')))+
+  facet_wrap(~mon_fac,nrow=3)+
+  scale_y_reverse()+
+    geom_text(aes(label=CRWD_2020_CLose_Round),size=2)+
+  xlab('Day of the Week')+
+  ylab('Week of the Month')+
+  theme(strip.text = element_text(size=11,face="plain",color="black"))
+```
+
+### V.Spiral Plot
+Spiral plot is also known as a time series spiral. This type of visualization plots time-based data along an Archimedean spiral. The graph begins at the centre of a spiral and then progresses outwards. Spiral Plots are versatile and can use bars, lines or points to be displayed along the spiral path. Spiral plots are ideal for showing large data sets, usually to show trends over a large time period. This makes spiral Plots great for displaying periodic patterns. Color can be assigned to each period to break them up and to allow some comparison between each period.
+
+##### Spiral histogram
+The data set is the average wind speed(m/s) from 06/11/2019 0:00 to 06/16/2019 21:30 in Adigala, Ethiopia. The data are collected every 10 mintues.
+
+```{r}
+library(lubridate)
+wind <- read.csv("wind speed.csv")
+wind$time <- ymd_hm(winddf$time)   ## transfer to POSIXct type
+wind$hour <- hour(winddf$time) + minute(winddf$time)/60  ## in hour
+wind$day <- as.Date(winddf$time)  ## everyday
+spiral_his <- wind %>% 
+          mutate(hour_group = cut(wind$hour,breaks = seq(0,24,0.5),  ## transfer to every 30 mintues
+                                   labels = seq(0,23.5,0.5),include.lowest = T),
+                  hour_group = as.numeric(as.character(hour_group)))  %>%
+          group_by(day,hour_group) %>%  ## group by the cycle time( day )
+          summarise(meanS =mean(wind_speed))  %>% ##  the average of group 
+          mutate(localtime = as.POSIXct(day) + hour_group*3600)  ##  hour to second
+spiral_his
+```
+```{r}
+ggplot(spiral)+ 
+  geom_rect(aes(xmin=hour_group,xmax=hour_group+0.5,
+                ymin=localtime,ymax=localtime+meanS*11111,  ## 11111 is the multiplier
+                fill=meanS),color='gray60',size=0.25)+
+  scale_fill_gradientn(colors = colorRampPalette(brewer.pal(9,'PiYG'))(9))+
+  scale_y_datetime(limits = range(spiral$localtime)+c(-24*3600,6*3600),  ## adjust the position of the cycle
+                   breaks = seq(min(spiral$localtime),max(spiral$localtime),'1 day'),#cycle time( day )
+                   date_labels ='%e/%b')+
+  scale_x_continuous(limits = c(0,24),breaks = 0:23,   ## break time as 0-24
+                     minor_breaks = 0:24,labels = paste(0:23,':00'))+
+  ylab('Date of 2019')+
+  coord_polar()+
+  theme( panel.background = element_blank(),  ## delete the background
+         panel.border =  element_rect(fill=NA,colour = "grey",size=.25), # add bord
+         panel.grid.major.y  = element_blank(),    # add cycles
+         panel.grid.major.x  = element_line(colour = "grey",size=0.35),)  # add label line
+```
+
+##### Concentric circle
+The concentric circles plots is the extension of spiral plot. We are using the `pm25.csv` dataset which is the value of PM 2.5 in China from 2017 to 2018.
+```{r}
+pm25_raw <- read.csv("pm25.csv")
+pm25 <- pm25_raw[,c(1,3)]
+pm25$date <- ymd(pm25$date)
+## Cycle time--year
+pm25$year <- year(pm25$date)
+## which day in the 
+pm25$day <- yday(pm25$date)
+pm25_df <- pm25 %>% group_by(day,year) 
+ggplot() +
+  geom_rect(data=pm25_df,aes(xmin=day,xmax=day+1,
+                ymin=year,ymax=year+0.7,fill=pm2.5))+
+  scale_fill_gradientn(colors = colorRampPalette(brewer.pal(9,'PuRd'))(9))+
+  scale_x_continuous(breaks=c(1,31,59,90,120,151,181,212,243,273,304,334),
+                     labels = c())+
+  scale_y_continuous(breaks = c(2015,2016,2017,2018),labels = c(2015,2016,2017,2018))+
+  geom_text(data=NULL,aes(x=seq(15,345,length=12),
+                          y=rep(2019,length=12),                
+                        label=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),
+                        angle=rep(c(-seq(15,345,length=12)[1:3],rev(seq(15,345,length=12)[1:3])),2)),
+            size=5,color="black")+
+  ylab('Year')+
+  xlab('')+
+  coord_polar()+
+  theme(panel.background = element_blank(), 
+        panel.border =  element_rect(fill=NA,colour = "grey",size=.25),  
+        panel.grid.major.y  = element_line(colour = "grey",size=0.1),
+        panel.grid.major.x  = element_line(colour = "grey60",size=0.5))
+```
